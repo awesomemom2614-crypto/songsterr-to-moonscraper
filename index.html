@@ -3,83 +3,412 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Songsterr drums to Moonscraper</title>
 <style>
-:root{--bg:#e8ecef;--ink:#16202b;--mut:#5b6672;--pn:#fff;--ac:#2456e5;--ln:#c9d1d8}
-@media(prefers-color-scheme:dark){:root{--bg:#141a21;--ink:#e6ebef;--mut:#93a0ad;--pn:#1d2630;--ac:#6f95ff;--ln:#33404d}}
+:root{--bg:#e8ecef;--ink:#16202b;--mut:#5b6672;--pn:#fff;--ac:#2456e5;--ln:#c9d1d8;--warn:#b45309}
+@media(prefers-color-scheme:dark){:root{--bg:#141a21;--ink:#e6ebef;--mut:#93a0ad;--pn:#1d2630;--ac:#6f95ff;--ln:#33404d;--warn:#f59e0b}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Avenir Next","Segoe UI",system-ui,sans-serif}
 main{max-width:34rem;margin:0 auto;padding:2rem 1.25rem 3rem}
 h1{font-size:1.6rem;line-height:1.2;margin:.6rem 0 .5rem;letter-spacing:-.01em}
+h2{font-size:1.05rem;margin:1.4rem 0 .6rem}
 p{color:var(--mut);margin:0 0 1.4rem}
 .lanes{display:flex;gap:6px}.lanes i{width:26px;height:8px;border-radius:4px}
 label{display:block;font-weight:600;margin:0 0 1rem}
-input[type=file],input[type=number]{display:block;width:100%;margin-top:.35rem;padding:.6rem;border:1px solid var(--ln);border-radius:8px;background:var(--pn);color:var(--ink);font:inherit;font-weight:400}
+.opt{font-weight:400;color:var(--mut)}
+input[type=file],input[type=number],input[type=text],select{display:block;width:100%;margin-top:.35rem;padding:.6rem;border:1px solid var(--ln);border-radius:8px;background:var(--pn);color:var(--ink);font:inherit;font-weight:400}
 button{font:inherit;font-weight:600;padding:.65rem 1.1rem;border:0;border-radius:8px;background:var(--ac);color:#fff;cursor:pointer}
+button:disabled{opacity:.55;cursor:default}
 button.alt{background:var(--pn);color:var(--ink);border:1px solid var(--ln)}
-button:focus-visible,input:focus-visible{outline:3px solid var(--ac);outline-offset:2px}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--ac);outline-offset:2px}
 .row{display:flex;gap:.6rem;flex-wrap:wrap;margin-top:1rem}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:0 .8rem}
 section{margin-top:1.6rem;padding:1.1rem;background:var(--pn);border-radius:12px}
-dl{display:grid;grid-template-columns:1fr auto;gap:.3rem 1rem;margin:0 0 1rem}dt{color:var(--mut)}dd{margin:0;font-weight:600}
+section h2:first-child{margin-top:0}
+dl{display:grid;grid-template-columns:1fr auto;gap:.3rem 1rem;margin:0 0 1rem}dt{color:var(--mut)}dd{margin:0;font-weight:600;text-align:right}
 #msg{margin-top:1rem;color:#c2410c;min-height:1.5em}
+#warn{color:var(--warn);margin:0 0 1rem;font-size:.95rem}
+#warn:empty{display:none}
 small{color:var(--mut);display:block;margin-top:.4rem;font-weight:400}
+.chk{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem}.chk input{width:1.2rem;height:1.2rem;margin:0}.chk small{flex-basis:100%;margin-top:0}
 canvas{width:100%;height:auto;display:block;margin-top:.4rem}
 </style></head><body><main>
 <div class="lanes" aria-hidden="true"><i style="background:#f28b1e"></i><i style="background:#d93a3a"></i><i style="background:#e8c81c"></i><i style="background:#2f6fe0"></i><i style="background:#2fae5b"></i></div>
 <h1>Songsterr drums to Moonscraper</h1>
-<p>Choose the Songsterr MIDI and the song's MP3. You get a pro drums Expert <b>notes.mid</b> that lines up with the audio.</p>
+<p>Choose the Songsterr MIDI, the song's MP3 and, if you have it, the Guitar Pro file. You get a pro drums Expert chart that lines up with the audio.</p>
 <label>Songsterr MIDI file<input type="file" id="mid" accept=".mid,.midi"></label>
+<label>Guitar Pro file <span class="opt">(optional)</span><input type="file" id="gp" accept=".gp"><small>Adds the real toms, crashes and chinas. Timing still comes from the MIDI.</small></label>
 <label>Song MP3<input type="file" id="mp3" accept="audio/*,.mp3"></label>
+<label>Drums come in around (seconds) <span class="opt">(optional)</span><input type="number" id="hint" step="0.1" min="0"><small>Only needed if the app gets the start wrong. A rough guess within a few seconds is enough. Leave it blank to find it automatically.</small></label>
 <button id="go">Analyze</button>
 <div id="msg" role="status"></div>
 <section id="res" hidden>
+<h2>Chart</h2>
 <dl id="stats"></dl>
-<label>Audio start (seconds)<input type="number" id="off" step="0.001" min="0"><small>Detected as the first sound in the MP3. Adjust it if the preview clicks sit early or late.</small></label>
+<div id="warn"></div>
+<label>Audio start (seconds)<input type="number" id="off" step="0.001"><small id="offnote"></small></label>
+<label class="chk"><input type="checkbox" id="warp"> Follow the band's tempo<small id="driftnote"></small></label>
+<h2>Preview</h2>
 <label>Preview from (seconds)<input type="number" id="from" step="0.5" min="0"></label>
 <canvas id="viz" width="340" height="70" aria-label="Drum hits during preview"></canvas>
+<small>Filled dots are drums, rings are cymbals.</small>
 <div class="row"><button id="play" class="alt">Preview with clicks</button><button id="stop" class="alt">Stop</button></div>
-<div class="row"><button id="dlz">Download notes.mid + song.ogg (.zip)</button><button id="dl" class="alt">notes.mid only</button></div>
-<small>Both files start with 2 seconds of silence, as Clone Hero requires. Unzip into one song folder, then open notes.mid in Moonscraper.</small>
+<h2>Song folder</h2>
+<div class="two"><label>Song name<input type="text" id="title"></label><label>Artist<input type="text" id="artist"></label></div>
+<label>Charter <span class="opt">(optional)</span><input type="text" id="charter"></label>
+<label>Audio format<select id="fmt"><option value="opus">Opus (small file)</option><option value="wav">WAV (large file, plays everywhere)</option></select></label>
+<div class="row"><button id="dlz">Download song folder (.zip)</button><button id="dl" class="alt">notes.mid only</button></div>
+<small>The zip holds notes.mid, the audio and a song.ini with pro drums turned on. Chart and audio both start with 2 seconds of silence, as Clone Hero requires. Unzip it into your Clone Hero songs folder, or open notes.mid in Moonscraper.</small>
 </section>
 </main>
 <script>
 const $=id=>document.getElementById(id);
-let midi,buf,ctx,tm;
-// GM drum note -> [expert lane note, optional pro tom marker]
-const M={35:[96],36:[96],37:[97],38:[97],40:[97],42:[98],44:[98],46:[98],48:[98,110],50:[98,110],45:[99,111],47:[99,111],41:[100,112],43:[100,112],51:[99],53:[99],59:[99],49:[100],52:[100],57:[100]};
+let midi,gp,buf,ctx,tm,tm0,tmW,chart,info,sync;
 const msg=t=>$('msg').textContent=t;
+const PAD=2;
 
+/* ---------- drum classification ---------- */
+function gmClass(n){
+ if(n===35||n===36)return{k:'kick'};
+ if(n===37)return{k:'snare',side:true};
+ if(n===38||n===40)return{k:'snare'};
+ if(n===42||n===46)return{k:'hat'};
+ if(n===44)return{k:'pedal'};
+ if([41,43,45,47,48,50].includes(n))return{k:'tom',gm:n};
+ if([49,52,55,57].includes(n))return{k:'crash'};
+ if([51,53,59].includes(n))return{k:'ride'};
+ return null;
+}
+function artClass(type,name,gm){
+ switch(type){
+  case'kickDrum':return{k:'kick'};
+  case'snare':return{k:'snare',side:/side ?stick/i.test(name)};
+  case'hiHat':return/pedal/i.test(name)?{k:'pedal'}:{k:'hat'};
+  case'tom':return{k:'tom',gm};
+  case'crash':case'china':case'splash':return{k:'crash'};
+  case'ride':return{k:'ride'};
+ }
+ return type?{k:null}:(gmClass(gm)||{k:null});
+}
+const LANE={kick:96,snare:97,hat:98,crash:100,ride:99};
+
+/* ---------- MIDI ---------- */
 function parseMidi(b){
  const u=new Uint8Array(b),dv=new DataView(b),n=dv.getUint16(10),ppq=dv.getUint16(12);
- let p=14,best=null;const o={ppq,tempos:[],sigs:[],notes:[]};
+ let p=14,best=null;const o={ppq,tempos:[],sigs:[],notes:[],pitched:[]};
  for(let t=0;t<n;t++){
-  const end=p+8+dv.getUint32(p+4);let q=p+8,tick=0,rs=0,c9=0;const nt=[];p=end;
+  const end=p+8+dv.getUint32(p+4);let q=p+8,tick=0,rs=0,c9=0;const nt=[],on={};p=end;
   while(q<end){
    let v=0,x;do{x=u[q++];v=(v<<7)|(x&127)}while(x&128);tick+=v;
    const s=u[q];
-   if(s===255){const ty=u[q+1],l=u[q+2],d=u.slice(q+3,q+3+l);q+=3+l;
+   if(s===255){const ty=u[q+1];let l=0,y;q+=2;do{y=u[q++];l=(l<<7)|(y&127)}while(y&128);const d=u.slice(q,q+l);q+=l;
     if(ty===0x51)o.tempos.push([tick,(d[0]<<16)|(d[1]<<8)|d[2]]);
     else if(ty===0x58)o.sigs.push([tick,d[0],d[1]]);}
-   else if(s===240||s===247){q+=2+u[q+1]}
+   else if(s===240||s===247){q++;let l=0,y;do{y=u[q++];l=(l<<7)|(y&127)}while(y&128);q+=l}
    else{if(s&128){rs=s;q++}const hi=rs>>4,a=u[q++];let c=0;if(hi!==12&&hi!==13)c=u[q++];
-    if(hi===9&&c>0){nt.push([tick,a]);if((rs&15)===9)c9++}}
+    const ch=rs&15;
+    if(hi===9&&c>0&&ch===9){nt.push([tick,a]);c9++}
+    else if(ch!==9&&hi===9&&c>0)on[ch*128+a]=tick;
+    else if(ch!==9&&(hi===8||hi===9)&&on[ch*128+a]!==undefined){o.pitched.push([on[ch*128+a],tick,a]);delete on[ch*128+a]}}
   }
   if(c9&&(!best||c9>best.c))best={c:c9,nt};
  }
- o.notes=best?best.nt:[];return o;
+ o.notes=best?best.nt.sort((a,b)=>a[0]-b[0]):[];return o;
 }
+const T=t=>Math.round(t*192/midi.ppq);
 function tmap(o){
  const m=new Map();o.tempos.forEach(([t,us])=>m.set(T(t),us));
  if(!m.has(0))m.set(0,500000);
  const ev=[...m].sort((a,b)=>a[0]-b[0]);let s=0;
  return ev.map(([t,us],i)=>{if(i)s+=(t-ev[i-1][0])/192*ev[i-1][1]/1e6;return{t,us,s}});
 }
-const T=t=>Math.round(t*192/midi.ppq);
 function sec(t){let e=tm[0];for(const x of tm){if(x.t>t)break;e=x}return e.s+(t-e.t)/192*e.us/1e6}
+
+/* ---------- Guitar Pro 7/8 (.gp) ---------- */
+async function unzip(ab){
+ const u=new Uint8Array(ab),dv=new DataView(ab),files={};
+ let e=u.length-22;while(e>=0&&dv.getUint32(e,true)!==0x06054b50)e--;
+ if(e<0)throw Error('the Guitar Pro file is damaged.');
+ let p=dv.getUint32(e+16,true);const n=dv.getUint16(e+10,true);
+ for(let i=0;i<n;i++){
+  const nl=dv.getUint16(p+28,true),name=new TextDecoder().decode(u.subarray(p+46,p+46+nl));
+  files[name]={m:dv.getUint16(p+10,true),cs:dv.getUint32(p+20,true),lo:dv.getUint32(p+42,true)};
+  p+=46+nl+dv.getUint16(p+30,true)+dv.getUint16(p+32,true);
+ }
+ return async name=>{
+  const f=files[name];if(!f)return null;
+  const s=f.lo+30+dv.getUint16(f.lo+26,true)+dv.getUint16(f.lo+28,true),d=u.subarray(s,s+f.cs);
+  if(f.m===0)return d;if(f.m!==8)throw Error('the Guitar Pro file uses an unsupported compression.');
+  return new Uint8Array(await new Response(new Blob([d]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+ };
+}
+async function parseGp(ab,ppq){
+ const h=new Uint8Array(ab,0,4);
+ if(h[0]!==0x50||h[1]!==0x4b)throw Error('this Guitar Pro file is an older format. Open it in Guitar Pro 7 or 8 and save it as .gp, or download the .gp from Songsterr again.');
+ const x=await(await unzip(ab))('Content/score.gpif');
+ if(!x)throw Error('the Guitar Pro file has no score in it.');
+ const G=new DOMParser().parseFromString(new TextDecoder().decode(x),'application/xml').documentElement;
+ const kids=(el,tag)=>el?[...el.children].filter(c=>c.tagName===tag):[],one=(el,tag)=>kids(el,tag)[0];
+ const txt=(el,tag)=>{const c=one(el,tag);return c?c.textContent.trim():''};
+ const warn=[];
+ const tracks=kids(one(G,'Tracks'),'Track'),ti=tracks.findIndex(t=>txt(one(t,'InstrumentSet'),'Type')==='drumKit');
+ if(ti<0)throw Error('the Guitar Pro file has no drum track.');
+ const arts=[];
+ for(const el of kids(one(one(tracks[ti],'InstrumentSet'),'Elements'),'Element')){
+  const type=txt(el,'Type');
+  for(const a of kids(one(el,'Articulations'),'Articulation'))
+   arts.push(artClass(type,txt(a,'Name'),parseInt(txt(a,'InputMidiNumbers'))||parseInt(txt(a,'OutputMidiNumber'))||0));
+ }
+ const byId=tag=>{const m={};for(const e of kids(one(G,tag+'s'),tag))m[e.getAttribute('id')]=e;return m};
+ const R=byId('Rhythm'),B=byId('Beat'),V=byId('Voice'),BR=byId('Bar'),N=byId('Note');
+ const NV={Whole:1,Half:.5,Quarter:.25,Eighth:.125,'16th':1/16,'32nd':1/32,'64th':1/64,'128th':1/128};
+ const dur=r=>{if(!r)return .25;const b=NV[txt(r,'NoteValue')]||.25,d=one(r,'AugmentationDot');let l=b,a=b;
+  if(d)for(let i=0;i<(+d.getAttribute('count')||1);i++){a/=2;l+=a}
+  const tp=one(r,'PrimaryTuplet');if(tp)l=l*(+tp.getAttribute('den'))/(+tp.getAttribute('num'));return l};
+ const mbs=kids(one(G,'MasterBars'),'MasterBar').map(m=>{
+  const [nn,dd]=(txt(m,'Time')||'4/4').split('/').map(Number),r=one(m,'Repeat'),al=txt(m,'AlternateEndings');
+  if(one(m,'Directions'))warn.push('dir');
+  return{len:nn/dd,bar:txt(m,'Bars').split(/\s+/)[ti],rs:r&&r.getAttribute('start')==='true',re:r&&r.getAttribute('end')==='true',
+   rc:r?Math.max(2,+r.getAttribute('count')||2):0,alt:al?al.split(/\s+/).map(Number):null};
+ });
+ // play order with repeats and alternate endings
+ const seq=[];let start=0,pass=1,guard=0,rep=false;
+ for(let i=0;i<mbs.length&&guard++<20000;){
+  const m=mbs[i];
+  if(m.rs&&start!==i){start=i;pass=1}
+  if(m.alt&&!m.alt.includes(pass)){i++;continue}
+  seq.push(i);
+  if(m.re&&pass<m.rc){pass++;i=start;rep=true;continue}
+  if(m.re){pass=1;start=i+1}
+  i++;
+ }
+ const notes=[];let pos=0;
+ for(const mi of seq){
+  const m=mbs[mi],bar=BR[m.bar];
+  if(bar)for(const vid of txt(bar,'Voices').split(/\s+/)){
+   if(vid==='-1'||!V[vid])continue;let p=0;
+   for(const bid of txt(V[vid],'Beats').split(/\s+/)){
+    const b=B[bid];if(!b)continue;if(one(b,'GraceNotes'))continue;
+    const rr=one(b,'Rhythm'),d=dur(rr&&R[rr.getAttribute('ref')])*4*ppq,ns=txt(b,'Notes');
+    if(ns)for(const nid of ns.split(/\s+/)){
+     const n=N[nid];if(!n)continue;const tie=one(n,'Tie');if(tie&&tie.getAttribute('destination')==='true')continue;
+     let a=arts[parseInt(txt(n,'InstrumentArticulation'))];
+     if(!a){const pr=kids(one(n,'Properties'),'Property').find(q=>q.getAttribute('name')==='Midi');a=pr?gmClass(parseInt(txt(pr,'Number'))):null}
+     if(a&&a.k&&a.k!=='pedal')notes.push({t:Math.round(pos+p),...a});
+    }
+    p+=d;
+   }
+  }
+  pos+=m.len*4*ppq;
+ }
+ notes.sort((a,b)=>a.t-b.t);
+ const sc=one(G,'Score');
+ return{notes,title:txt(sc,'Title'),artist:txt(sc,'Artist'),dir:warn.length>0,rep};
+}
+
+/* ---------- merge: MIDI timing + GP drum identities ---------- */
+function tomLanes(gms){
+ const s=[...new Set(gms)].sort((a,b)=>b-a),m={};
+ s.forEach((g,i)=>m[g]=s.length===1?99:i===0?98:i===s.length-1?100:99);
+ return g=>{if(m[g])return m[g];if(!s.length)return 99;let b=s[0];for(const x of s)if(Math.abs(x-g)<Math.abs(b-g))b=x;return m[b]};
+}
+function nearest(a,t){let lo=0,hi=a.length-1;if(hi<0)return -1;while(lo<hi){const md=(lo+hi)>>1;if(a[md]<t)lo=md+1;else hi=md}
+ return lo>0&&Math.abs(a[lo-1]-t)<=Math.abs(a[lo]-t)?lo-1:lo}
+function merge(){
+ const P=midi.ppq,I={pedal:0,side:0,added:0,clash:0,shift:0};
+ const mn=[];
+ for(const[t,p]of midi.notes){const c=gmClass(p);if(!c)continue;if(c.k==='pedal'){I.pedal++;continue}mn.push({t,c,g:null})}
+ let gn=[];
+ if(gp){
+  gn=gp.notes.map(n=>({...n}));
+  const q=P/4,s0=midi.sigs[0],bar=(s0?s0[1]*4/2**s0[2]:4)*P;
+  const set=new Set(mn.filter(m=>m.c.k==='kick'||m.c.k==='snare').map(m=>Math.round(m.t/q)));
+  let best=0,bs=-1;
+  for(let s=-8;s<=8;s++){let c=0;for(const g of gn)if((g.k==='kick'||g.k==='snare')&&set.has(Math.round((g.t+s*bar)/q)))c++;if(c>bs){bs=c;best=s}}
+  if(best)gn.forEach(g=>g.t+=best*bar);I.shift=best;
+  const tol=P*.1875,cand=[];let lo=0;
+  gn.forEach((g,gi)=>{while(lo<mn.length&&mn[lo].t<g.t-tol)lo++;
+   for(let j=lo;j<mn.length&&mn[j].t<=g.t+tol;j++)if(mn[j].c.k===g.k)cand.push([Math.abs(mn[j].t-g.t)+(mn[j].c.side?.5:0),gi,j])});
+  cand.sort((a,b)=>a[0]-b[0]);
+  for(const[,gi,j]of cand)if(!gn[gi].used&&!mn[j].g){gn[gi].used=1;mn[j].g=gn[gi]}
+ }
+ // local timing drift of the MIDI relative to the GP grid
+ const kt=[],kv=[];
+ if(gp){const by=new Map();for(const m of mn)if(m.g){const a=by.get(m.g.t)||[];a.push(m.t-m.g.t);by.set(m.g.t,a)}
+  [...by.keys()].sort((a,b)=>a-b).forEach(t=>{const a=by.get(t).sort((x,y)=>x-y);kt.push(t);kv.push(a[a.length>>1])})}
+ const drift=t=>{if(!kt.length)return 0;if(t<=kt[0])return kv[0];const L=kt.length-1;if(t>=kt[L])return kv[L];
+  let i=nearest(kt,t);if(kt[i]<t)i++;const f=(t-kt[i-1])/(kt[i]-kt[i-1]);return kv[i-1]+f*(kv[i]-kv[i-1])};
+ const tl=tomLanes((gp?gn:mn.map(m=>m.c)).filter(c=>c.k==='tom').map(c=>c.gm));
+ const out=[];
+ for(const m of mn){
+  if(gp&&m.c.side&&!m.g){I.side++;continue}
+  const c=m.g||m.c;
+  out.push(c.k==='tom'?{t:m.t,n:tl(c.gm),tom:1}:{t:m.t,n:LANE[c.k],tom:0});
+ }
+ if(gp){const ts=mn.map(m=>m.t);
+  for(const g of gn){
+   if(g.used||(g.k!=='crash'&&g.k!=='ride'))continue;
+   let t=Math.round(g.t+drift(g.t));if(t<0)continue;
+   const j=nearest(ts,t);if(j>=0&&Math.abs(ts[j]-t)<=P*.06)t=ts[j];
+   out.push({t,n:LANE[g.k],tom:0});I.added++;
+  }
+  I.matched=mn.filter(m=>m.g).length;I.total=mn.length;
+ }
+ const tomAt=new Set(out.filter(h=>h.tom).map(h=>h.t+':'+h.n)),seen=new Set(),fin=[];
+ for(const h of out){const k=h.t+':'+h.n;if(!h.tom&&tomAt.has(k)){I.clash++;continue}if(seen.has(k))continue;seen.add(k);fin.push(h)}
+ fin.sort((a,b)=>a.t-b.t||a.n-b.n);
+ I.toms={98:0,99:0,100:0};fin.forEach(h=>{if(h.tom)I.toms[h.n]++});
+ return{chart:fin,I};
+}
+
+/* ---------- audio alignment ---------- */
 function firstSound(ab){
  const x=ab.getChannelData(0),h=512,n=Math.floor(x.length/h),r=new Float32Array(n);let pk=0;
  for(let i=0;i<n;i++){let s=0;for(let j=0;j<h;j++){const v=x[i*h+j];s+=v*v}r[i]=Math.sqrt(s/h);if(r[i]>pk)pk=r[i]}
  for(let i=0;i<n;i++)if(r[i]>pk*0.03)return Math.max(0,(i-1)*h/ab.sampleRate);
  return 0;
 }
+async function bandEnvs(ab){
+ // Onset strength in three drum bands: kick, snare, hi-hat. 2 ms frames.
+ const R=22050,len=Math.ceil(ab.duration*R),hop=44,out=[];
+ for(const[lo,hi]of[[35,110],[1000,3000],[7000,10500]]){
+  const oc=new OfflineAudioContext(1,len,R),src=oc.createBufferSource();src.buffer=ab;let node=src;
+  for(const[t,f]of[['highpass',lo],['highpass',lo],['lowpass',hi],['lowpass',hi]]){const q=oc.createBiquadFilter();q.type=t;q.frequency.value=f;node.connect(q);node=q}
+  node.connect(oc.destination);src.start();
+  const x=(await oc.startRendering()).getChannelData(0),n=Math.floor(x.length/hop),d=new Float32Array(n),c20=new Float32Array(Math.floor(n/10));let prev=0,p20=0;
+  for(let i=0;i<n;i++){let a=0;for(let j=i*hop,e=j+hop;j<e;j++)a+=Math.abs(x[j]);a/=hop;d[i]=a>prev?a-prev:0;prev=a}
+  for(let i=0;i<c20.length;i++){let a=0;for(let j=i*10*hop,e=j+10*hop;j<e;j++)a+=Math.abs(x[j]);a/=10*hop;c20[i]=a>p20?a-p20:0;p20=a}
+  out.slow=c20;
+  const smp=[];for(let i=0;i<n;i+=7)smp.push(d[i]);smp.sort((p,q)=>p-q);const pk=smp[Math.floor(smp.length*.999)]||1;
+  for(let i=0;i<n;i++)d[i]/=pk;
+  out.push(d);
+ }
+ return{b:out,dt:hop/R,slow:out.slow,sdt:hop*10/R};
+}
+function drumEntry(E){
+ // First second where hi-hat activity stays at half its usual level for 4 seconds.
+ const v=[],per=Math.round(1/E.sdt);
+ for(let i=0;(i+1)*per<=E.slow.length;i++){let a=0;for(let j=i*per;j<(i+1)*per;j++)a+=E.slow[j];v.push(a)}
+ const n=v.length,mid=v.slice(Math.floor(n*.2),Math.floor(n*.9)).sort((p,q)=>p-q),ref=mid[mid.length>>1]||0;
+ for(let i=0;i+3<n;i++)if(v[i]>ref*.5&&v[i+1]>ref*.5&&v[i+2]>ref*.5&&v[i+3]>ref*.5)return i;
+ return null;
+}
+async function audioChroma(ab){
+ // 12-bin pitch-class profile every 93 ms, from 60 Hz to 2 kHz.
+ const R=11025,N=2048,H=1024,oc=new OfflineAudioContext(1,Math.ceil(ab.duration*R),R),src=oc.createBufferSource();
+ src.buffer=ab;src.connect(oc.destination);src.start();
+ const x=(await oc.startRendering()).getChannelData(0),nf=Math.max(0,Math.floor((x.length-N)/H)+1),C=new Float32Array(nf*12);
+ const win=new Float64Array(N);for(let i=0;i<N;i++)win[i]=.5-.5*Math.cos(2*Math.PI*i/N);
+ const bins=[];for(let k=1;k<N/2;k++){const fq=k*R/N;if(fq>60&&fq<2000)bins.push([k,((Math.round(12*Math.log2(fq/440))+9)%12+12)%12])}
+ const rev=new Uint32Array(N);for(let i=0,j=0;i<N;i++){rev[i]=j;let m=N>>1;while(j&m){j^=m;m>>=1}j|=m}
+ const re=new Float64Array(N),im=new Float64Array(N),cs=new Float64Array(N/2),sn=new Float64Array(N/2);
+ for(let i=0;i<N/2;i++){cs[i]=Math.cos(2*Math.PI*i/N);sn[i]=-Math.sin(2*Math.PI*i/N)}
+ for(let f=0;f<nf;f++){
+  for(let i=0;i<N;i++){re[rev[i]]=x[f*H+i]*win[i];im[rev[i]]=0}
+  for(let size=2;size<=N;size<<=1){const h=size>>1,st=N/size;
+   for(let i=0;i<N;i+=size)for(let j=0;j<h;j++){const k=j*st,a=i+j,b=a+h,tr=re[b]*cs[k]-im[b]*sn[k],ti=re[b]*sn[k]+im[b]*cs[k];re[b]=re[a]-tr;im[b]=im[a]-ti;re[a]+=tr;im[a]+=ti}}
+  const o=f*12;for(const[k,pc]of bins)C[o+pc]+=Math.log1p(10*Math.hypot(re[k],im[k]));
+  let m=0;for(let c=0;c<12;c++)m+=C[o+c];m/=12;let nn=0;for(let c=0;c<12;c++){C[o+c]-=m;nn+=C[o+c]**2}nn=Math.sqrt(nn)||1;for(let c=0;c<12;c++)C[o+c]/=nn;
+ }
+ return{C,dt:H/R,n:nf};
+}
+function chromaScore(A,notes,path,t0,t1){
+ // How well the MIDI's harmony, placed by this path, matches the audio's.
+ if(!A||!notes.length||path.length<2)return 0;
+ const px=path.map(p=>p[0]),offAt=t=>{if(t<=px[0])return path[0][1];const L=px.length-1;if(t>=px[L])return path[L][1];let i=nearest(px,t);if(px[i]<t)i++;const f=(t-px[i-1])/(px[i]-px[i-1]);return path[i-1][1]+f*(path[i][1]-path[i-1][1])};
+ const f0=Math.max(0,Math.floor(t0/A.dt)),f1=Math.min(A.n,Math.floor(t1/A.dt)),nf=f1-f0;if(nf<10)return 0;
+ const M=new Float32Array(nf*12);
+ for(const n of notes){const a=n[0]+offAt(n[0]),b=n[1]+offAt(n[1]);let i0=Math.max(0,Math.floor(a/A.dt)-f0),i1=Math.min(nf,Math.floor(b/A.dt)-f0);for(let i=i0;i<i1;i++)M[i*12+n[2]]+=1}
+ let tot=0,cnt=0;
+ for(let i=0;i<nf;i++){const o=i*12;let m=0;for(let c=0;c<12;c++)m+=M[o+c];if(!m)continue;m/=12;let nn=0;for(let c=0;c<12;c++){M[o+c]-=m;nn+=M[o+c]**2}nn=Math.sqrt(nn);if(!nn)continue;
+  let d=0;const ao=(f0+i)*12;for(let c=0;c<12;c++)d+=M[o+c]*A.C[ao+c];tot+=d/nn;cnt++}
+ return cnt?tot/cnt:0;
+}
+function hitScore(hs,o,w,E){
+ const s=[0,0,0],c=[0,0,0];let all=0;
+ for(const h of hs){const d=E.b[h.b],j=Math.round((h.s+o)/E.dt);if(j<w||j>=d.length-w)continue;let m=0;for(let k=j-w;k<=j+w;k++)if(d[k]>m)m=d[k];s[h.b]+=m;c[h.b]++;all++}
+ if(all<hs.length*.6)return 0;
+ return(c[0]?s[0]/c[0]:0)+(c[1]?s[1]/c[1]:0)+(c[2]?s[2]/c[2]:0);
+}
+function track(o0,E,W){
+ // Follow the offset window by window, allowing only small changes per step.
+ let off=o0,tot=0,n=0;const obs=[],path=[];
+ for(const w of W){
+  if(w.hs.length>=8){
+   let best=-1,bo=off;const all=[];
+   for(let o=off-.06;o<=off+.0601;o+=.003){const v=hitScore(w.hs,o,2,E);all.push(v);if(v>best){best=v;bo=o}}
+   all.sort((p,q)=>p-q);const base=all[all.length>>1];
+   if(base>0&&best/base>1.08){off=.6*bo+.4*off;obs.push([w.at,bo])}
+   tot+=hitScore(w.hs,off,2,E);
+  }
+  path.push([w.sec,off]);n++;
+ }
+ return{m:n?tot/n:0,obs,path};
+}
+function barStarts(end){
+ const P=midi.ppq,sg=[...midi.sigs].sort((a,b)=>a[0]-b[0]),out=[];let t=0,i=0,len=4*P;
+ while(t<=end){while(i<sg.length&&sg[i][0]<=t){len=sg[i][1]*4/2**sg[i][2]*P;i++}out.push(t);t+=len}
+ out.push(t);return out;
+}
+function findSync(E,A,hint){
+ const band={96:0,97:1,98:2};
+ const hits=chart.filter(h=>band[h.n]!==undefined&&!h.tom).map(h=>({t:h.t,s:sec(T(h.t)),b:band[h.n]}));
+ if(hits.length<16)return null;
+ const bs=barStarts(hits[hits.length-1].t),per=bs.map(()=>[]);
+ for(const h of hits){let i=nearest(bs,h.t);if(bs[i]>h.t)i--;per[i].push(h)}
+ const W=[];for(let i=0;i+1<per.length;i++)if(per[i].length||per[i+1].length)W.push({hs:per[i].concat(per[i+1]),at:T(bs[i+1]),sec:sec(T(bs[i+1]))});
+ const f0=hits[0].s,fl=hits[hits.length-1].s,entry=hint!=null?hint:drumEntry(E);
+ const notes=(midi.pitched||[]).map(([a,b,p])=>[sec(T(a)),sec(T(b)),p%12]);
+ let lo,hi;
+ if(entry!=null){lo=entry-(hint!=null?3:1.5)-f0;hi=entry+(hint!=null?3:2.5)-f0}
+ else{lo=-f0;hi=Math.min(E.b[0].length*E.dt-fl,30)}
+ const judge=o=>{const r=track(o,E,W);r.o=o;r.h=chromaScore(A,notes,r.path,f0+o,fl+o);r.v=r.m+r.h;return r};
+ let best={v:-1e9};
+ for(let o=lo;o<=hi;o+=.04){const r=judge(o);if(r.v>best.v)best=r}
+ const c=best.o;for(let o=c-.03;o<=c+.03;o+=.005){const r=judge(o);if(r.v>best.v)best=r}
+ let obs=best.obs;
+ if(A&&notes.length){
+  // Harmony sets the path every 4 bars; the drums fine-tune it within 80 ms.
+  const secs=W.map(w=>w.sec),co=[];let prev=best.o;
+  for(let i=0;i<W.length;i+=4){
+   const c=secs[i];let bo=prev,bv=-1e9;
+   for(let o=prev-.3;o<=prev+.3001;o+=.02){const v=chromaScore(A,notes,[[0,o],[1e9,o]],c-5+o,c+5+o);if(v>bv){bv=v;bo=o}}
+   co.push([c,bo]);prev=bo;
+  }
+  const cs=smoothObs(co),cx=cs.map(p=>p[0]);
+  const cAt=t=>{if(t<=cx[0])return cs[0][1];const L=cx.length-1;if(t>=cx[L])return cs[L][1];let i=nearest(cx,t);if(cx[i]<t)i++;const f=(t-cx[i-1])/(cx[i]-cx[i-1]);return cs[i-1][1]+f*(cs[i][1]-cs[i-1][1])};
+  obs=[];
+  for(const w of W){
+   const c0=cAt(w.sec);let bo=c0;
+   if(w.hs.length>=8){let bv=-1;const all=[];
+    for(let o=c0-.08;o<=c0+.0801;o+=.003){const v=hitScore(w.hs,o,2,E);all.push(v);if(v>bv){bv=v;bo=o}}
+    all.sort((p,q)=>p-q);if(!(all[all.length>>1]>0&&bv/all[all.length>>1]>1.08))bo=c0}
+   obs.push([w.at,bo]);
+  }
+ }
+ return{off:best.o,obs,m:best.m,entry,hint:hint!=null};
+}
+function smoothObs(obs){
+ const v=obs.map(x=>x[1]);
+ return obs.map(([t],i)=>{const w=v.slice(Math.max(0,i-2),i+3).sort((p,q)=>p-q);return[t,w[w.length>>1]]});
+}
+function warpMap(pts,off0){
+ // New tempo map where each point in the song lands at the audio time the drums say.
+ if(pts.length<2)return tm0;
+ const offAt=t=>{if(t<=pts[0][0])return pts[0][1];const L=pts.length-1;if(t>=pts[L][0])return pts[L][1];
+  let i=nearest(pts.map(p=>p[0]),t);if(pts[i][0]<t)i++;const f=(t-pts[i-1][0])/(pts[i][0]-pts[i-1][0]);return pts[i-1][1]+f*(pts[i][1]-pts[i-1][1])};
+ const tmSave=tm;tm=tm0;
+ const B=[...new Set([...tm0.map(e=>e.t),...pts.map(p=>p[0])])].sort((a,b)=>a-b);
+ const ns=t=>sec(t)+offAt(t)-off0,out=[];
+ for(let i=0;i<B.length;i++){
+  let us;
+  if(i+1<B.length){const d=ns(B[i+1])-ns(B[i]);us=d>0?Math.round(d/((B[i+1]-B[i])/192)*1e6):null}
+  if(!us){let e=tm0[0];for(const x of tm0){if(x.t>B[i])break;e=x}us=e.us}
+  us=Math.min(16777215,Math.max(1,us));
+  if(!out.length||out[out.length-1].us!==us)out.push({t:B[i],us});
+ }
+ tm=tmSave;
+ let sAcc=0;return out.map((e,i)=>{if(i)sAcc+=(e.t-out[i-1].t)/192*out[i-1].us/1e6;return{...e,s:sAcc}});
+}
+/* ---------- output ---------- */
 const us3=u=>[u>>16&255,u>>8&255,u&255];
 const meta=(t,ty,d)=>[t,0,[255,ty,d.length,...d]];
 const vlq=n=>{const a=[n&127];while(n>>=7)a.unshift(n&127|128);return a};
@@ -90,40 +419,89 @@ function chunk(evs){
  return[77,84,114,107,n>>24&255,n>>16&255,n>>8&255,n&255,...d];
 }
 function build(o){
- // A lead-in of whole 4/4 bars makes tick 0 the start of the MP3.
+ // A lead-in of whole 4/4 bars makes tick 0 the start of the padded audio.
  const L=o>=.05?768*Math.max(1,Math.round(o/2)):0,e0=[],e1=[];
  if(L){e0.push(meta(0,0x51,us3(Math.round(o*1e6/(L/192)))),meta(0,0x58,[4,2,24,8]))}
  tm.forEach(e=>e0.push(meta(e.t+L,0x51,us3(e.us))));
  midi.sigs.forEach(([t,nn,dd])=>e0.push(meta(T(t)+L,0x58,[nn,dd,24,8])));
  if(!midi.sigs.length)e0.push(meta(L,0x58,[4,2,24,8]));
  e1.push(meta(0,3,[...'PART DRUMS'].map(c=>c.charCodeAt(0))));
- const seen=new Set();
- for(const[t,p]of midi.notes){
-  const m=M[p];if(!m)continue;const a=T(t)+L,k=a+':'+m[0];if(seen.has(k))continue;seen.add(k);
-  for(const n of m)e1.push([a,1,[0x90,n,100]],[a+12,0,[0x80,n,0]]);
+ for(const h of chart){const a=T(h.t)+L;
+  e1.push([a,1,[0x90,h.n,100]],[a+12,0,[0x80,h.n,0]]);
+  if(h.tom)e1.push([a,1,[0x90,h.n+12,100]],[a+12,0,[0x80,h.n+12,0]]);
  }
  return new Uint8Array([77,84,104,100,0,0,0,6,0,1,0,2,0,192,...chunk(e0),...chunk(e1)]);
 }
 function show(){
- const o=+$('off').value||0,n=midi.notes.filter(x=>M[x[1]]).length,f=o+sec(T(midi.notes[0][0]));
- $('stats').innerHTML=`<dt>Drum hits</dt><dd>${n}</dd><dt>Tempo changes</dt><dd>${tm.length}</dd><dt>First drum hit in the audio</dt><dd>${f.toFixed(2)} s</dd>`;
+ const o=+$('off').value||0,f=o+sec(T(chart[0].t)),I=info,rows=[['Notes in the chart',chart.length],['Tempo changes',tm.length],['Timing drift',I.drift!=null?Math.round(I.drift*1000)+' ms':'-'],['First note in the audio',f.toFixed(2)+' s']];
+ if(gp){
+  rows.push(['MIDI notes matched in Guitar Pro',Math.round(100*I.matched/I.total)+'%'],
+   ['Toms (yellow / blue / green)',`${I.toms[98]} / ${I.toms[99]} / ${I.toms[100]}`],
+   ['Cymbals added from Guitar Pro',I.added],['Stray side sticks removed',I.side]);
+ }
+ if(I.pedal)rows.push(['Pedal hi-hats left out',I.pedal]);
+ $('stats').innerHTML=rows.map(([a,b])=>`<dt>${a}</dt><dd>${b}</dd>`).join('');
 }
+function cleanName(s){return s.replace(/_/g,' ').replace(/\.[a-z0-9]+$/i,'').replace(/\s*[\(\[][^\)\]]*(official|video|audio|lyric|hd|remaster)[^\)\]]*[\)\]]/ig,'').replace(/\s+/g,' ').trim()}
+function names(gpTitle,file){
+ const s=cleanName(gpTitle||file),i=s.indexOf(' - ');
+ return i>0?{artist:s.slice(0,i).trim(),title:s.slice(i+3).trim()}:{artist:'',title:s};
+}
+
 $('go').onclick=async()=>{
+ const a=$('mid').files[0],g=$('gp').files[0],b=$('mp3').files[0];
+ if(!a||!b)return msg('Choose a MIDI file and an MP3 first. The Guitar Pro file is optional.');
+ $('go').disabled=true;stop();
  try{
-  const a=$('mid').files[0],b=$('mp3').files[0];
-  if(!a||!b)return msg('Choose both a MIDI file and an MP3 first.');
-  msg('Analyzing…');
+  msg('Reading the MIDI…');
   midi=parseMidi(await a.arrayBuffer());
-  if(!midi.notes.length)return msg('No drum notes found. The MIDI needs a drum track on channel 10.');
-  tm=tmap(midi);
+  if(!midi.notes.length)return msg('No drum notes found. The MIDI needs a drum track on channel 10. If this is a notes.mid this page made, open it in Moonscraper instead.');
+  tm0=tm=tmap(midi);
+  gp=null;
+  if(g){msg('Reading the Guitar Pro file…');try{gp=await parseGp(await g.arrayBuffer(),midi.ppq)}catch(e){return msg('Could not use the Guitar Pro file: '+e.message)}}
+  ({chart,I:info}=merge());
+  if(!chart.length)return msg('The MIDI has no notes that map to drum lanes.');
+  msg('Decoding the MP3…');
   const ac=new AudioContext();buf=await ac.decodeAudioData(await b.arrayBuffer());ac.close();
-  const o=firstSound(buf);$('off').value=o.toFixed(3);
-  $('from').value=Math.max(0,o+sec(T(midi.notes[0][0]))-2).toFixed(1);
+  msg('Lining up the drums with the audio…');
+  await new Promise(r=>setTimeout(r,30));
+  const E=await bandEnvs(buf),hv=$('hint').value.trim();
+  const A=midi.pitched.length?await audioChroma(buf):null;
+  tm=tm0;sync=findSync(E,A,hv===''?null:+hv);
+  let o,note;
+  if(sync&&sync.m>0){o=sync.off;const fh=(o+sec(T(chart[0].t))).toFixed(1);
+   note=`Found by lining up the drums${midi.pitched.length?' and the chords':''} with the MP3, starting from ${sync.hint?'your':'where the drums come in, at about'} ${sync.hint?'hint':(sync.entry??0)+' s'}. The first note lands at ${fh} s. If that's wrong, enter where the drums come in above and analyze again.`}
+  else{o=firstSound(buf);note='The drums could not be matched, so this is the first sound in the MP3. Check it with the preview.'}
+  const pts=sync?smoothObs(sync.obs):[];
+  tmW=pts.length>1?warpMap(pts,o):tm0;
+  const offs=pts.map(p=>p[1]),drift=offs.length?Math.max(...offs)-Math.min(...offs):0;
+  info.drift=drift;
+  $('warp').checked=drift>.04;$('warp').disabled=pts.length<2;
+  $('driftnote').textContent=pts.length<2?'Not enough clear drum hits to follow the tempo.':
+   `The band drifts up to ${Math.round(drift*1000)} ms from the MIDI's tempo. ${drift>.04?'Leave this on so the notes stay with the audio.':'That is small enough to leave off.'}`;
+  tm=$('warp').checked?tmW:tm0;
+  if(o+PAD<0)o=-PAD;
+  $('off').value=o.toFixed(3);$('offnote').textContent=note;
+  $('from').value=Math.max(0,o+sec(T(chart[0].t))-2).toFixed(1);
+  const nm=names(gp&&gp.title,b.name);
+  $('title').value=nm.title;$('artist').value=gp&&!nm.artist?gp.artist:nm.artist;
+  const w=[];
+  if(gp){
+   if(info.matched/info.total<.6)w.push('Under 60% of the MIDI notes matched the Guitar Pro file. It may be a different arrangement, so check the toms and cymbals.');
+   if(info.shift)w.push(`The Guitar Pro file was ${Math.abs(info.shift)} bar${Math.abs(info.shift)>1?'s':''} ${info.shift>0?'behind':'ahead of'} the MIDI and was shifted to line up.`);
+   if(gp.dir)w.push('The Guitar Pro file uses jumps such as D.S. or Coda, which this page does not follow. Sections after a jump may not match.');
+  }
+  $('warn').textContent=w.join(' ');
+  if(!window.AudioEncoder){$('fmt').value='wav';$('fmt').options[0].disabled=true}
   show();$('res').hidden=false;msg('');
  }catch(e){msg('Could not read the files: '+e.message)}
+ finally{$('go').disabled=false}
 };
-$('off').oninput=()=>midi&&show();
-const PAD=2,COL={96:'#f28b1e',97:'#d93a3a',98:'#e8c81c',99:'#2f6fe0',100:'#2fae5b'};
+$('off').oninput=()=>chart&&show();
+$('warp').onchange=()=>{stop();tm=$('warp').checked?tmW:tm0;show()};
+
+/* ---------- preview ---------- */
+const COL={96:'#f28b1e',97:'#d93a3a',98:'#e8c81c',99:'#2f6fe0',100:'#2fae5b'};
 let hits=[],hi=0,raf;
 function draw(){
  const c=$('viz'),g=c.getContext('2d'),now=ctx?ctx.currentTime:0,last={};
@@ -145,19 +523,21 @@ $('play').onclick=()=>{
  ctx=new AudioContext();const s=ctx.createBufferSource(),v=ctx.createGain();
  v.gain.value=.5;s.buffer=buf;s.connect(v);v.connect(ctx.destination);
  const b=ctx.currentTime+.2;s.start(b,f);hits=[];hi=0;
- for(const[t,p]of midi.notes){
-  const m=M[p];if(!m)continue;const at=b+o+sec(T(t))-f;if(at<b)continue;
-  hits.push([at,m[0],m[0]>97&&!m[1]]);
-  const os=ctx.createOscillator(),g=ctx.createGain();os.type='square';os.frequency.value=m[0]===96?200:1500;
+ for(const h of chart){
+  const at=b+o+sec(T(h.t))-f;if(at<b)continue;
+  hits.push([at,h.n,h.n>97&&!h.tom]);
+  const os=ctx.createOscillator(),g=ctx.createGain();os.type='square';os.frequency.value=h.n===96?200:1500;
   g.gain.setValueAtTime(.5,at);g.gain.exponentialRampToValueAtTime(.001,at+.05);
   os.connect(g);g.connect(ctx.destination);os.start(at);os.stop(at+.06);
  }
  draw();
 };
+
+/* ---------- files ---------- */
 const cat=a=>{const o=new Uint8Array(a.reduce((s,x)=>s+x.length,0));let q=0;a.forEach(x=>{o.set(x,q);q+=x.length});return o};
 const oggT=(()=>{const t=[];for(let i=0;i<256;i++){let r=i<<24;for(let j=0;j<8;j++)r=r&0x80000000?(r<<1)^0x04c11db7:r<<1;t.push(r>>>0)}return t})();
 const zipT=(()=>{const t=[];for(let i=0;i<256;i++){let c=i;for(let j=0;j<8;j++)c=c&1?0xedb88320^(c>>>1):c>>>1;t.push(c>>>0)}return t})();
-const crc32=d=>{let c=-1;for(const b of d)c=zipT[(c^b)&255]^(c>>>8);return(c^-1)>>>0};
+const crc32=d=>{let c=-1;for(let i=0;i<d.length;i++)c=zipT[(c^d[i])&255]^(c>>>8);return(c^-1)>>>0};
 const asc=s=>[...s].map(c=>c.charCodeAt(0));
 function page(type,gran,seq,pk){
  const lac=[];pk.forEach(p=>{let l=p.length;while(l>=255){lac.push(255);l-=255}lac.push(l)});
@@ -175,10 +555,12 @@ function ogg(pk){
  while(i<pk.length){const grp=pk.slice(i,i+30);i+=30;g+=grp.length*960;out.push(page(i>=pk.length?4:0,g,seq++,grp))}
  return cat(out);
 }
-async function toOgg(){
- const R=48000,n=Math.ceil((buf.duration+PAD)*R),oc=new OfflineAudioContext(2,n,R),s=oc.createBufferSource();
- s.buffer=buf;s.connect(oc.destination);s.start(PAD);
- const pcm=await oc.startRendering(),ch=[pcm.getChannelData(0),pcm.getChannelData(1)],pk=[];
+async function padded(R){
+ const n=Math.ceil((buf.duration+PAD)*R),oc=new OfflineAudioContext(2,n,R),s=oc.createBufferSource();
+ s.buffer=buf;s.connect(oc.destination);s.start(PAD);return oc.startRendering();
+}
+async function toOpus(){
+ const R=48000,pcm=await padded(R),n=pcm.length,ch=[pcm.getChannelData(0),pcm.getChannelData(1)],pk=[];
  const enc=new AudioEncoder({output:c=>{const d=new Uint8Array(c.byteLength);c.copyTo(d);pk.push(d)},error:e=>{throw e}});
  enc.configure({codec:'opus',sampleRate:R,numberOfChannels:2,bitrate:160000});
  for(let i=0;i<n;i+=960){
@@ -188,6 +570,14 @@ async function toOgg(){
   if(enc.encodeQueueSize>50)await new Promise(r=>setTimeout(r,0));
  }
  await enc.flush();return ogg(pk);
+}
+async function toWav(){
+ const pcm=await padded(44100),n=pcm.length,o=new DataView(new ArrayBuffer(44+n*4)),w=(p,s)=>asc(s).forEach((c,i)=>o.setUint8(p+i,c));
+ w(0,'RIFF');o.setUint32(4,36+n*4,true);w(8,'WAVE');w(12,'fmt ');o.setUint32(16,16,true);o.setUint16(20,1,true);o.setUint16(22,2,true);
+ o.setUint32(24,44100,true);o.setUint32(28,176400,true);o.setUint16(32,4,true);o.setUint16(34,16,true);w(36,'data');o.setUint32(40,n*4,true);
+ const L=pcm.getChannelData(0),Rr=pcm.getChannelData(1);let p=44;
+ for(let i=0;i<n;i++){for(const v of[L[i],Rr[i]]){const c=v<-1?-1:v>1?1:v;o.setInt16(p,c<0?c*32768:c*32767,true);p+=2}}
+ return new Uint8Array(o.buffer);
 }
 function zip(files){
  const loc=[],cen=[];let off=0;
@@ -204,11 +594,20 @@ function zip(files){
 function save(name,bytes,type){
  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([bytes],{type}));a.download=name;a.click();
 }
+const one=s=>s.replace(/[\r\n]+/g,' ').trim();
+const ini=()=>`[song]\nname = ${one($('title').value)}\nartist = ${one($('artist').value)}\ncharter = ${one($('charter').value)}\npro_drums = True\ndiff_drums = -1\ndiff_drums_real = -1\nsong_length = ${Math.round((buf.duration+PAD)*1000)}\n`;
 const mid=()=>build((+$('off').value||0)+PAD);
 $('dl').onclick=()=>save('notes.mid',mid(),'audio/midi');
 $('dlz').onclick=async()=>{
- if(!window.AudioEncoder)return msg('This browser cannot encode audio. Use a recent Chrome or Edge.');
- try{msg('Encoding audio…');save('song-package.zip',zip([['notes.mid',mid()],['song.ogg',await toOgg()]]),'application/zip');msg('')}
- catch(e){msg('Encoding failed: '+e.message)}
+ const wav=$('fmt').value==='wav';
+ if(!wav&&!window.AudioEncoder)return msg('This browser cannot make Opus audio. Choose WAV instead.');
+ $('dlz').disabled=true;
+ try{
+  msg(wav?'Writing the audio…':'Encoding the audio…');
+  const audio=wav?['song.wav',await toWav()]:['song.opus',await toOpus()];
+  const base=[$('artist').value,$('title').value].map(s=>s.trim()).filter(Boolean).join(' - ').replace(/[\\/:*?"<>|]/g,'')||'song';
+  save(base+'.zip',zip([['notes.mid',mid()],audio,['song.ini',new TextEncoder().encode(ini())]]),'application/zip');msg('');
+ }catch(e){msg('Making the song folder failed: '+e.message)}
+ finally{$('dlz').disabled=false}
 };
 </script></body></html>
