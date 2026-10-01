@@ -6,7 +6,7 @@ Single-page browser app that converts a Songsterr drum MIDI plus the song's MP3 
 
 ## Usage
 1. Open `index.html` in a recent Chrome or Edge (audio encoding needs WebCodecs).
-2. Choose the Songsterr MIDI and the MP3, then click Analyze.
+2. Choose the Songsterr MIDI, .GP and the MP3, then click Analyze.
 3. Adjust the audio start if needed and preview with clicks.
 4. Download the zip, unzip into a song folder, and open `notes.mid` in Moonscraper.
 
